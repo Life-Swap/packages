@@ -233,6 +233,48 @@ import Testing
     #expect(groundOverlay.hasSetMap)
   }
 
+  @Test func updateGroundOverlayKeepsIconAtFullResolution() throws {
+    // Same asset and scaling as the marker case, but ground overlays scale with map zoom, so
+    // the 120x140 px bitmap is kept rather than downsampled to the screen scale.
+    // The controller holds its map view weakly and update() is a no-op without one, so the
+    // map view must stay alive for the duration of the test.
+    let (groundOverlayController, mapView) =
+      try GroundOverlayControllerTests.groundOverlayControllerWithBoundsWithMockedMap()
+    let assetName = "fakeImageName"
+    let assetProvider = TestAssetProvider(
+      image: MarkerControllerTests.createImage(width: 120, height: 140), forAssetName: assetName,
+      package: nil)
+
+    groundOverlayController.update(
+      from: PlatformGroundOverlay(
+        groundOverlayId: "id_1",
+        image: PlatformBitmapAssetMap(
+          assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 1, width: 28, height: nil),
+        position: nil,
+        bounds: PlatformLatLngBounds(
+          northeast: PlatformLatLng(latitude: 54.4816, longitude: 5.1791),
+          southwest: PlatformLatLng(latitude: 52.4816, longitude: 3.1791)
+        ),
+        anchor: PlatformPoint(x: 0.5, y: 0.5),
+        transparency: 0,
+        bearing: 0,
+        zIndex: 0,
+        visible: true,
+        clickable: false,
+        zoomLevel: nil
+      ),
+      assetProvider: assetProvider,
+      screenScale: 3.0
+    )
+
+    let icon = try #require(groundOverlayController.groundOverlay.icon)
+    #expect(icon.scale > 3)
+    let cgImage = try #require(icon.cgImage)
+    #expect(cgImage.width == 120)
+    #expect(cgImage.height == 140)
+    withExtendedLifetime(mapView) {}
+  }
+
   @Test func assetProviderIsRetained() {
     var groundOverlayController: GroundOverlaysController?
     weak var weakAssetProvider: TestAssetProvider?

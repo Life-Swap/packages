@@ -12,6 +12,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapCapabilities
+import com.google.android.gms.maps.model.MapColorScheme
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.PointOfInterest
 import io.flutter.plugin.common.BinaryMessenger
@@ -29,6 +30,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.spy
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -132,6 +134,32 @@ class GoogleMapControllerTest {
     googleMapController.onMapReady(mockGoogleMap)
     verify(mockGoogleMap, times(1))
         .setPadding(paddingWithDensity, paddingWithDensity, paddingWithDensity, paddingWithDensity)
+  }
+
+  @Test
+  fun setMapColorSchemeBeforeMapReadyIsAppliedOnMapReady() {
+    val googleMapController = createGoogleMapController()
+    googleMapController.setMapColorScheme(MapColorScheme.DARK)
+    verify(mockGoogleMap, never()).setMapColorScheme(any())
+    googleMapController.onMapReady(mockGoogleMap)
+    verify(mockGoogleMap, times(1)).setMapColorScheme(MapColorScheme.DARK)
+  }
+
+  @Test
+  fun setMapColorSchemeAfterMapReadyIsAppliedImmediately() {
+    val googleMapController = createGoogleMapController()
+    googleMapController.onMapReady(mockGoogleMap)
+    verify(mockGoogleMap, never()).setMapColorScheme(any())
+    googleMapController.setMapColorScheme(MapColorScheme.LIGHT)
+    verify(mockGoogleMap, times(1)).setMapColorScheme(MapColorScheme.LIGHT)
+  }
+
+  @Test
+  fun setMapColorSchemeNullLeavesTheSchemeAlone() {
+    val googleMapController = createGoogleMapController()
+    googleMapController.setMapColorScheme(null)
+    googleMapController.onMapReady(mockGoogleMap)
+    verify(mockGoogleMap, never()).setMapColorScheme(any())
   }
 
   @Test

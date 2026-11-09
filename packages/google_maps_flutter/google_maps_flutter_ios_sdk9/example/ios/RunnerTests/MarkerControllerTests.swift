@@ -272,6 +272,62 @@ import Testing
     #expect(marker.hasSetMap)
   }
 
+  @Test func updateMarkerDownsamplesIconToScreenScale() throws {
+    // The icon pipeline the app uses: a 120x140 px asset shown at width 28 pt on a 3x screen.
+    // The scaling path retags the image to scale 120/84 (~4.29) instead of redrawing, so without
+    // the marker opt-in the icon would keep all 120x140 px; with it the bitmap is redrawn at the
+    // screen scale.
+    let assetName = "fakeImageName"
+    let assetProvider = TestAssetProvider(
+      image: MarkerControllerTests.createImage(width: 120, height: 140), forAssetName: assetName,
+      package: nil)
+    let marker = GMSMarker()
+    MarkerController.update(
+      marker,
+      from: PlatformMarker(
+        alpha: 1.0,
+        anchor: PlatformPoint(x: 0.5, y: 1),
+        consumeTapEvents: false,
+        draggable: false,
+        flat: false,
+        icon: PlatformBitmapAssetMap(
+          assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 1, width: 28, height: nil),
+        infoWindow: PlatformInfoWindow(
+          title: nil, snippet: nil, anchor: PlatformPoint(x: 0.5, y: 0)),
+        position: PlatformLatLng(latitude: 0, longitude: 0),
+        rotation: 0,
+        visible: true,
+        zIndex: 0,
+        markerId: "marker",
+        clusterManagerId: nil,
+        collisionBehavior: nil
+      ),
+      mapView: MarkerControllerTests.mapView(),
+      assetProvider: assetProvider,
+      screenScale: 3,
+      usingOpacityForVisibility: false
+    )
+
+    let icon = try #require(marker.icon)
+    #expect(icon.scale == 3)
+    #expect(abs(icon.size.width - 28) < 0.01)
+    let cgImage = try #require(icon.cgImage)
+    #expect(cgImage.width <= 85)
+    #expect(cgImage.width >= 84)
+  }
+
+  static func createImage(width: Int, height: Int) -> UIImage {
+    let size = CGSize(width: width, height: height)
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 1.0
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: size, format: format)
+    return renderer.image { context in
+      UIColor.white.setFill()
+      context.fill(CGRect(origin: .zero, size: size))
+    }
+  }
+
   @Test func assetProviderIsRetained() {
     var markerController: MarkersController?
     weak var weakAssetProvider: TestAssetProvider?

@@ -62,8 +62,10 @@ extension PlatformBitmap {
     let parts: [String]
     switch self {
     case let bitmap as PlatformBitmapAssetMap:
-      // The asset provider participates in the key because the same asset name can resolve to
-      // different images across Flutter engines (add-to-app).
+      // The asset provider participates in the key so an image is only ever shared within the
+      // provider that produced it (one provider per map view). Identity is best effort: a freed
+      // provider's identifier can be reused, so this is not a guarantee across engines; keying on
+      // the resolved asset key would share across map views as well.
       parts = [
         "asset",
         String(describing: ObjectIdentifier(assetProvider as AnyObject)),
@@ -350,6 +352,9 @@ func downsampledToScreenScale(_ image: UIImage, screenScale: CGFloat) -> UIImage
   let format = UIGraphicsImageRendererFormat.default()
   format.scale = screenScale
   format.opaque = false
+  // Marker icons are 8-bit images; the default format picks the extended range on wide-colour
+  // devices, which doubles the bytes per pixel of the bitmap kept for the cache.
+  format.preferredRange = .standard
   let renderer = UIGraphicsImageRenderer(size: pointSize, format: format)
   return renderer.image { _ in
     image.draw(in: CGRect(origin: .zero, size: pointSize))
