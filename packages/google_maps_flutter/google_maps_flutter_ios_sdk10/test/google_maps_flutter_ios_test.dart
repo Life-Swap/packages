@@ -1234,6 +1234,53 @@ void main() {
     );
   });
 
+  testWidgets('colorScheme is passed', (WidgetTester tester) async {
+    final passedColorSchemeCompleter = Completer<PlatformMapColorScheme?>();
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform_views,
+      (MethodCall methodCall) {
+        if (methodCall.method == 'create') {
+          final args = Map<String, dynamic>.from(methodCall.arguments as Map<dynamic, dynamic>);
+          if (args.containsKey('params')) {
+            final paramsUint8List = args['params'] as Uint8List;
+            final byteData = ByteData.sublistView(paramsUint8List);
+            final creationParams =
+                MapsApi.pigeonChannelCodec.decodeMessage(byteData)
+                    as PlatformMapViewCreationParams?;
+            if (creationParams != null && !passedColorSchemeCompleter.isCompleted) {
+              passedColorSchemeCompleter.complete(creationParams.mapConfiguration.colorScheme);
+            }
+          }
+        }
+        return null;
+      },
+    );
+
+    final maps = GoogleMapsFlutterIOS();
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: maps.buildViewWithConfiguration(
+          1,
+          (int id) {},
+          widgetConfiguration: const MapWidgetConfiguration(
+            initialCameraPosition: CameraPosition(target: LatLng(0, 0), zoom: 1),
+            textDirection: TextDirection.ltr,
+          ),
+          mapConfiguration: const MapConfiguration(colorScheme: MapColorScheme.dark),
+        ),
+      ),
+    );
+
+    expect(
+      await passedColorSchemeCompleter.future,
+      PlatformMapColorScheme.dark,
+      reason: 'Should pass colorScheme on PlatformView creation message',
+    );
+  });
+
   group('markerType in creationParams', () {
     Future<PlatformMarkerType> getMarkerTypeFromCreationParams(
       WidgetTester tester,

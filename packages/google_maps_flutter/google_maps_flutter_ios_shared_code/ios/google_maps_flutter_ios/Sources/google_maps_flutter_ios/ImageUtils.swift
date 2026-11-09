@@ -2,15 +2,103 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import CryptoKit
 import Flutter
 import GoogleMaps
 import UIKit
 
+/// Cache of icons by descriptor content, so identical descriptors yield the same UIImage instance.
+///
+/// The Maps SDK caches marker textures by UIImage instance identity, so instance sharing is what
+/// lets N markers with the same icon share one texture instead of holding N copies
+/// (https://developers.google.com/maps/documentation/ios-sdk/marker#customize_the_marker_image).
+/// NSCache evicts automatically under memory pressure; a miss only costs a re-decode.
+private let iconCache: NSCache<NSString, UIImage> = {
+  let cache = NSCache<NSString, UIImage>()
+  cache.countLimit = 100
+  return cache
+}()
+
 extension PlatformBitmap {
   /// Creates a UIImage from the Pigeon bitmap representation, suitable for use as a marker icon.
+  ///
+  /// Identical descriptors return the same UIImage instance (see `iconCache`).
+  ///
+  /// Pass `true` for `downsampleToScreenScale` when the image is rendered at a fixed point size
+  /// (markers, pin glyphs): bitmaps carrying more pixels than the screen can display at that size
+  /// are resampled down to the screen's pixel density, capping the texture the Maps SDK rasterizes
+  /// from them. Leave it `false` when the image can render larger than its point size (ground
+  /// overlays, which scale with map zoom), where the extra pixels preserve detail.
   func createIcon(
     assetProvider: AssetProvider,
-    screenScale: CGFloat
+    screenScale: CGFloat,
+    downsampleToScreenScale: Bool = false
+  ) -> UIImage? {
+    let cacheKey = iconCacheKey(
+      assetProvider: assetProvider,
+      screenScale: screenScale,
+      downsampleToScreenScale: downsampleToScreenScale)
+    if let cacheKey = cacheKey, let cachedImage = iconCache.object(forKey: cacheKey as NSString) {
+      return cachedImage
+    }
+    let image = createUncachedIcon(
+      assetProvider: assetProvider,
+      screenScale: screenScale,
+      downsampleToScreenScale: downsampleToScreenScale)
+    if let cacheKey = cacheKey, let image = image {
+      iconCache.setObject(image, forKey: cacheKey as NSString)
+    }
+    return image
+  }
+
+  /// Returns a key uniquely identifying the UIImage that `createUncachedIcon` produces for this
+  /// descriptor, or nil for descriptor types that are not cached (the deprecated descriptor types
+  /// and pin configs).
+  private func iconCacheKey(
+    assetProvider: AssetProvider,
+    screenScale: CGFloat,
+    downsampleToScreenScale: Bool
+  ) -> String? {
+    let parts: [String]
+    switch self {
+    case let bitmap as PlatformBitmapAssetMap:
+      // The asset provider participates in the key because the same asset name can resolve to
+      // different images across Flutter engines (add-to-app).
+      parts = [
+        "asset",
+        String(describing: ObjectIdentifier(assetProvider as AnyObject)),
+        bitmap.assetName,
+        String(bitmap.bitmapScaling.rawValue),
+        String(bitmap.imagePixelRatio),
+        optionalKeyPart(bitmap.width),
+        optionalKeyPart(bitmap.height),
+        String(Double(screenScale)),
+        String(downsampleToScreenScale),
+      ]
+    case let bitmap as PlatformBitmapBytesMap:
+      parts = [
+        "bytes",
+        sha256Hex(bitmap.byteData.data),
+        String(bitmap.bitmapScaling.rawValue),
+        String(bitmap.imagePixelRatio),
+        optionalKeyPart(bitmap.width),
+        optionalKeyPart(bitmap.height),
+        String(Double(screenScale)),
+        String(downsampleToScreenScale),
+      ]
+    case let bitmap as PlatformBitmapDefaultMarker:
+      parts = ["default", optionalKeyPart(bitmap.hue)]
+    default:
+      return nil
+    }
+    return parts.joined(separator: "|")
+  }
+
+  /// Creates a UIImage from the Pigeon bitmap representation without consulting the icon cache.
+  private func createUncachedIcon(
+    assetProvider: AssetProvider,
+    screenScale: CGFloat,
+    downsampleToScreenScale: Bool
   ) -> UIImage? {
     assert(screenScale > 0, "Screen scale must be greater than 0")
 
@@ -61,6 +149,9 @@ extension PlatformBitmap {
         } else {
           image = scaledImage(currentImage, scale: CGFloat(bitmap.imagePixelRatio))
         }
+        if downsampleToScreenScale, let scaled = image {
+          image = downsampledToScreenScale(scaled, screenScale: screenScale)
+        }
       }
     case let bitmap as PlatformBitmapBytesMap:
       let bytes = bitmap.byteData
@@ -75,6 +166,9 @@ extension PlatformBitmap {
             image = scaledImage(tempImage, width: width, height: height, screenScale: screenScale)
           } else {
             image = scaledImage(currentImage, scale: CGFloat(bitmap.imagePixelRatio))
+          }
+          if downsampleToScreenScale, let scaled = image {
+            image = downsampledToScreenScale(scaled, screenScale: screenScale)
           }
         } else {
           // No scaling, load image from bytes without scale parameter.
@@ -104,7 +198,8 @@ extension PlatformBitmap {
       } else if let glyphBitmap = bitmap.glyphBitmap {
         if let glyphImage = glyphBitmap.createIcon(
           assetProvider: assetProvider,
-          screenScale: screenScale
+          screenScale: screenScale,
+          downsampleToScreenScale: downsampleToScreenScale
         ) {
           glyph = GMSPinImageGlyph(image: glyphImage)
         }
@@ -231,6 +326,48 @@ private func scaledImage(
     height: (calculatedHeight * screenScale).rounded()
   )
   return scaledImage(image, to: targetSize)
+}
+
+/// Resamples an image down to the screen's pixel density when it carries more pixels than the
+/// screen can display at the image's point size.
+///
+/// The scaling paths above prefer reinterpreting `UIImage.scale` over redrawing, so a
+/// high-resolution source keeps its full bitmap; the Maps SDK rasterizes its marker texture from
+/// that bitmap rather than from the displayed size, making each texture several times larger than
+/// what is rendered. Redrawing at the screen scale caps the texture at the displayed resolution
+/// with no visible difference.
+///
+/// Returns the original image when its scale is at or below the screen scale, or when the
+/// resampled bitmap would round down to zero pixels.
+func downsampledToScreenScale(_ image: UIImage, screenScale: CGFloat) -> UIImage {
+  if image.scale <= screenScale + .ulpOfOne {
+    return image
+  }
+  let pointSize = image.size
+  if pointSize.width * screenScale < 1 || pointSize.height * screenScale < 1 {
+    return image
+  }
+  let format = UIGraphicsImageRendererFormat.default()
+  format.scale = screenScale
+  format.opaque = false
+  let renderer = UIGraphicsImageRenderer(size: pointSize, format: format)
+  return renderer.image { _ in
+    image.draw(in: CGRect(origin: .zero, size: pointSize))
+  }
+}
+
+/// Empties the icon cache. Intended for tests, which must not observe each other's instances.
+func clearIconCache() {
+  iconCache.removeAllObjects()
+}
+
+private func optionalKeyPart(_ value: Double?) -> String {
+  guard let value = value else { return "-" }
+  return String(value)
+}
+
+private func sha256Hex(_ data: Data) -> String {
+  return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
 
 func isScalableWithScaleFactor(from originalSize: CGSize, to targetSize: CGSize) -> Bool {

@@ -79,9 +79,12 @@ class MarkerController {
   ) {
     marker.groundAnchor = platformMarker.anchor.toCGPoint()
     marker.isDraggable = platformMarker.draggable
+    // Markers render at a fixed point size, so pixels beyond the screen scale
+    // only inflate the texture the Maps SDK rasterizes from the icon.
     marker.icon = platformMarker.icon.createIcon(
       assetProvider: assetProvider,
-      screenScale: screenScale
+      screenScale: screenScale,
+      downsampleToScreenScale: true
     )
     marker.isFlat = platformMarker.flat
     marker.position = platformMarker.position.toCLLocationCoordinate2D()

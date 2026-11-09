@@ -9,6 +9,12 @@ import Testing
 
 @MainActor struct ExtractIconFromDataTests {
 
+  init() {
+    // The icon cache is process-wide; start every test from an empty one so a
+    // test never observes an instance another test created.
+    clearIconCache()
+  }
+
   @Test func extractIconFromDataAssetAuto() {
     let testImage = createOnePixelImage()
     let assetName = "fakeImageName"
@@ -407,8 +413,168 @@ import Testing
     #expect(!isScalableWithScaleFactor(from: originalSize, to: targetSize))
   }
 
+  @Test func createIconReturnsSameInstanceForIdenticalAssetDescriptors() {
+    let testImage = createOnePixelImage()
+    let assetName = "fakeImageName"
+    let assetProvider = TestAssetProvider(image: testImage, forAssetName: assetName, package: nil)
+
+    let first = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 2, width: 15, height: nil)
+    let second = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 2, width: 15, height: nil)
+
+    let firstImage = first.createIcon(assetProvider: assetProvider, screenScale: 3.0)
+    let secondImage = second.createIcon(assetProvider: assetProvider, screenScale: 3.0)
+
+    #expect(firstImage != nil)
+    #expect(firstImage === secondImage)
+  }
+
+  @Test func createIconDoesNotShareInstancesAcrossDifferentDimensions() {
+    let testImage = createOnePixelImage()
+    let assetName = "fakeImageName"
+    let assetProvider = TestAssetProvider(image: testImage, forAssetName: assetName, package: nil)
+
+    let first = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 2, width: 15, height: nil)
+    let second = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 2, width: 20, height: nil)
+
+    let firstImage = first.createIcon(assetProvider: assetProvider, screenScale: 3.0)
+    let secondImage = second.createIcon(assetProvider: assetProvider, screenScale: 3.0)
+
+    #expect(firstImage != nil)
+    #expect(secondImage != nil)
+    #expect(firstImage !== secondImage)
+  }
+
+  @Test func createIconDoesNotShareInstancesAcrossAssetProviders() {
+    // Two engines can resolve the same asset name to different images, so the
+    // provider is part of the key: provider B must not be served A's icon.
+    let assetName = "fakeImageName"
+    let providerA = TestAssetProvider(
+      image: createOnePixelImage(), forAssetName: assetName, package: nil)
+    let providerB = TestAssetProvider(
+      image: createOnePixelImage(), forAssetName: assetName, package: nil)
+
+    let bitmap = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 1, width: nil, height: nil)
+
+    let imageA = bitmap.createIcon(assetProvider: providerA, screenScale: 3.0)
+    let imageB = bitmap.createIcon(assetProvider: providerB, screenScale: 3.0)
+
+    #expect(imageA != nil)
+    #expect(imageA !== imageB)
+  }
+
+  @Test func createIconReturnsSameInstanceForIdenticalBytesDescriptors() throws {
+    let pngData = try #require(createOnePixelImage().pngData())
+
+    let first = PlatformBitmapBytesMap(
+      byteData: FlutterStandardTypedData(bytes: pngData),
+      bitmapScaling: .auto, imagePixelRatio: 2, width: 15, height: nil)
+    // A distinct copy of the same bytes must hit the same cache entry.
+    let second = PlatformBitmapBytesMap(
+      byteData: FlutterStandardTypedData(bytes: Data(pngData)),
+      bitmapScaling: .auto, imagePixelRatio: 2, width: 15, height: nil)
+
+    let firstImage = first.createIcon(assetProvider: TestAssetProvider(), screenScale: 3.0)
+    let secondImage = second.createIcon(assetProvider: TestAssetProvider(), screenScale: 3.0)
+
+    #expect(firstImage != nil)
+    #expect(firstImage === secondImage)
+  }
+
+  @Test func createIconDoesNotShareBytesInstancesAcrossScalingParams() throws {
+    let pngData = try #require(createOnePixelImage().pngData())
+
+    let first = PlatformBitmapBytesMap(
+      byteData: FlutterStandardTypedData(bytes: pngData),
+      bitmapScaling: .auto, imagePixelRatio: 2, width: nil, height: nil)
+    let second = PlatformBitmapBytesMap(
+      byteData: FlutterStandardTypedData(bytes: pngData),
+      bitmapScaling: .auto, imagePixelRatio: 3, width: nil, height: nil)
+
+    let firstImage = first.createIcon(assetProvider: TestAssetProvider(), screenScale: 3.0)
+    let secondImage = second.createIcon(assetProvider: TestAssetProvider(), screenScale: 3.0)
+
+    #expect(firstImage != nil)
+    #expect(secondImage != nil)
+    #expect(firstImage !== secondImage)
+  }
+
+  @Test func downsampleCachesSeparatelyFromFullResolution() {
+    let testImage = createImage(pixelSize: 30)
+    let assetName = "fakeImageName"
+    let assetProvider = TestAssetProvider(image: testImage, forAssetName: assetName, package: nil)
+    let bitmap = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 10, width: nil, height: nil)
+
+    let fullResolution = bitmap.createIcon(
+      assetProvider: assetProvider, screenScale: 3.0, downsampleToScreenScale: false)
+    let downsampled = bitmap.createIcon(
+      assetProvider: assetProvider, screenScale: 3.0, downsampleToScreenScale: true)
+
+    #expect(fullResolution !== downsampled)
+  }
+
+  @Test func downsampleReducesIconToScreenScale() {
+    // A 30 px square asset declared at pixel ratio 10 is a 3x3 pt icon holding 10x the pixels
+    // a 3x screen can show.
+    let testImage = createImage(pixelSize: 30)
+    let assetName = "fakeImageName"
+    let assetProvider = TestAssetProvider(image: testImage, forAssetName: assetName, package: nil)
+    let bitmap = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 10, width: nil, height: nil)
+
+    let resultImage = bitmap.createIcon(
+      assetProvider: assetProvider, screenScale: 3.0, downsampleToScreenScale: true)
+
+    let image = try! #require(resultImage)
+    #expect(image.scale == 3.0)
+    #expect(image.size.width == 3.0)
+    #expect(image.size.height == 3.0)
+    #expect(image.cgImage?.width == 9)
+    #expect(image.cgImage?.height == 9)
+  }
+
+  @Test func downsampleKeepsIconAtOrBelowScreenScale() {
+    let testImage = createImage(pixelSize: 30)
+    let assetName = "fakeImageName"
+    let assetProvider = TestAssetProvider(image: testImage, forAssetName: assetName, package: nil)
+    let bitmap = PlatformBitmapAssetMap(
+      assetName: assetName, bitmapScaling: .auto, imagePixelRatio: 2, width: nil, height: nil)
+
+    let resultImage = bitmap.createIcon(
+      assetProvider: assetProvider, screenScale: 3.0, downsampleToScreenScale: true)
+
+    // Scale 2 is below the screen's 3, so the pixels are kept as they are.
+    let image = try! #require(resultImage)
+    #expect(image.scale == 2.0)
+    #expect(image.cgImage?.width == 30)
+  }
+
+  @Test func downsampleKeepsBytesIconWhenResampledSizeWouldBeEmpty() throws {
+    // One pixel at ratio 10 is a 0.1 pt icon: 0.3 px at 3x rounds to nothing, so the original
+    // bitmap is kept rather than producing an empty image.
+    let pngData = try #require(createOnePixelImage().pngData())
+    let bitmap = PlatformBitmapBytesMap(
+      byteData: FlutterStandardTypedData(bytes: pngData),
+      bitmapScaling: .auto, imagePixelRatio: 10, width: nil, height: nil)
+
+    let resultImage = bitmap.createIcon(
+      assetProvider: TestAssetProvider(), screenScale: 3.0, downsampleToScreenScale: true)
+
+    #expect(resultImage?.scale == 10)
+    #expect(resultImage?.cgImage?.width == 1)
+  }
+
   private func createOnePixelImage() -> UIImage {
-    let size = CGSize(width: 1, height: 1)
+    return createImage(pixelSize: 1)
+  }
+
+  private func createImage(pixelSize: Int) -> UIImage {
+    let size = CGSize(width: pixelSize, height: pixelSize)
     let format = UIGraphicsImageRendererFormat.default()
     format.scale = 1.0
     format.opaque = true

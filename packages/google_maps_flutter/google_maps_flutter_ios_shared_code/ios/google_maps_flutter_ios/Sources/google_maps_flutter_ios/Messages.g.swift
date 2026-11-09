@@ -227,6 +227,13 @@ enum PlatformMarkerType: Int, CaseIterable {
   case advancedMarker = 1
 }
 
+/// Pigeon equivalent of MapColorScheme.
+enum PlatformMapColorScheme: Int, CaseIterable {
+  case light = 0
+  case dark = 1
+  case followSystem = 2
+}
+
 /// Pigeon equivalent of [MapBitmapScaling].
 enum PlatformMapBitmapScaling: Int, CaseIterable {
   case auto = 0
@@ -1861,6 +1868,7 @@ struct PlatformMapConfiguration: Hashable, CustomStringConvertible {
   var markerType: PlatformMarkerType
   var mapId: String? = nil
   var style: String? = nil
+  var colorScheme: PlatformMapColorScheme? = nil
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
   static func fromList(_ pigeonVar_list: [Any?]) -> PlatformMapConfiguration? {
@@ -1882,6 +1890,7 @@ struct PlatformMapConfiguration: Hashable, CustomStringConvertible {
     let markerType = pigeonVar_list[15] as! PlatformMarkerType
     let mapId: String? = nilOrValue(pigeonVar_list[16])
     let style: String? = nilOrValue(pigeonVar_list[17])
+    let colorScheme: PlatformMapColorScheme? = nilOrValue(pigeonVar_list[18])
 
     return PlatformMapConfiguration(
       compassEnabled: compassEnabled,
@@ -1901,7 +1910,8 @@ struct PlatformMapConfiguration: Hashable, CustomStringConvertible {
       buildingsEnabled: buildingsEnabled,
       markerType: markerType,
       mapId: mapId,
-      style: style
+      style: style,
+      colorScheme: colorScheme
     )
   }
   func toList() -> [Any?] {
@@ -1924,6 +1934,7 @@ struct PlatformMapConfiguration: Hashable, CustomStringConvertible {
       markerType,
       mapId,
       style,
+      colorScheme,
     ]
   }
   static func == (lhs: PlatformMapConfiguration, rhs: PlatformMapConfiguration) -> Bool {
@@ -1948,6 +1959,7 @@ struct PlatformMapConfiguration: Hashable, CustomStringConvertible {
       && MessagesPigeonInternal.deepEquals(lhs.markerType, rhs.markerType)
       && MessagesPigeonInternal.deepEquals(lhs.mapId, rhs.mapId)
       && MessagesPigeonInternal.deepEquals(lhs.style, rhs.style)
+      && MessagesPigeonInternal.deepEquals(lhs.colorScheme, rhs.colorScheme)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -1970,11 +1982,12 @@ struct PlatformMapConfiguration: Hashable, CustomStringConvertible {
     MessagesPigeonInternal.deepHash(value: markerType, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: mapId, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: style, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: colorScheme, hasher: &hasher)
   }
 
   public var description: String {
     return
-      "PlatformMapConfiguration(compassEnabled: \(String(describing: compassEnabled)), cameraTargetBounds: \(String(describing: cameraTargetBounds)), mapType: \(String(describing: mapType)), minMaxZoomPreference: \(String(describing: minMaxZoomPreference)), rotateGesturesEnabled: \(String(describing: rotateGesturesEnabled)), scrollGesturesEnabled: \(String(describing: scrollGesturesEnabled)), tiltGesturesEnabled: \(String(describing: tiltGesturesEnabled)), trackCameraPosition: \(String(describing: trackCameraPosition)), zoomGesturesEnabled: \(String(describing: zoomGesturesEnabled)), myLocationEnabled: \(String(describing: myLocationEnabled)), myLocationButtonEnabled: \(String(describing: myLocationButtonEnabled)), padding: \(String(describing: padding)), indoorViewEnabled: \(String(describing: indoorViewEnabled)), trafficEnabled: \(String(describing: trafficEnabled)), buildingsEnabled: \(String(describing: buildingsEnabled)), markerType: \(String(describing: markerType)), mapId: \(String(describing: mapId)), style: \(String(describing: style)))"
+      "PlatformMapConfiguration(compassEnabled: \(String(describing: compassEnabled)), cameraTargetBounds: \(String(describing: cameraTargetBounds)), mapType: \(String(describing: mapType)), minMaxZoomPreference: \(String(describing: minMaxZoomPreference)), rotateGesturesEnabled: \(String(describing: rotateGesturesEnabled)), scrollGesturesEnabled: \(String(describing: scrollGesturesEnabled)), tiltGesturesEnabled: \(String(describing: tiltGesturesEnabled)), trackCameraPosition: \(String(describing: trackCameraPosition)), zoomGesturesEnabled: \(String(describing: zoomGesturesEnabled)), myLocationEnabled: \(String(describing: myLocationEnabled)), myLocationButtonEnabled: \(String(describing: myLocationButtonEnabled)), padding: \(String(describing: padding)), indoorViewEnabled: \(String(describing: indoorViewEnabled)), trafficEnabled: \(String(describing: trafficEnabled)), buildingsEnabled: \(String(describing: buildingsEnabled)), markerType: \(String(describing: markerType)), mapId: \(String(describing: mapId)), style: \(String(describing: style)), colorScheme: \(String(describing: colorScheme)))"
   }
 }
 
@@ -2618,90 +2631,96 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
     case 134:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
-        return PlatformMapBitmapScaling(rawValue: enumResultAsInt)
+        return PlatformMapColorScheme(rawValue: enumResultAsInt)
       }
       return nil
     case 135:
-      return PlatformCameraPosition.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformMapBitmapScaling(rawValue: enumResultAsInt)
+      }
+      return nil
     case 136:
-      return PlatformCameraUpdateNewCameraPosition.fromList(self.readValue() as! [Any?])
+      return PlatformCameraPosition.fromList(self.readValue() as! [Any?])
     case 137:
-      return PlatformCameraUpdateNewLatLng.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateNewCameraPosition.fromList(self.readValue() as! [Any?])
     case 138:
-      return PlatformCameraUpdateNewLatLngBounds.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateNewLatLng.fromList(self.readValue() as! [Any?])
     case 139:
-      return PlatformCameraUpdateNewLatLngZoom.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateNewLatLngBounds.fromList(self.readValue() as! [Any?])
     case 140:
-      return PlatformCameraUpdateScrollBy.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateNewLatLngZoom.fromList(self.readValue() as! [Any?])
     case 141:
-      return PlatformCameraUpdateZoomBy.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateScrollBy.fromList(self.readValue() as! [Any?])
     case 142:
-      return PlatformCameraUpdateZoom.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateZoomBy.fromList(self.readValue() as! [Any?])
     case 143:
-      return PlatformCameraUpdateZoomTo.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateZoom.fromList(self.readValue() as! [Any?])
     case 144:
-      return PlatformCircle.fromList(self.readValue() as! [Any?])
+      return PlatformCameraUpdateZoomTo.fromList(self.readValue() as! [Any?])
     case 145:
-      return PlatformHeatmap.fromList(self.readValue() as! [Any?])
+      return PlatformCircle.fromList(self.readValue() as! [Any?])
     case 146:
-      return PlatformHeatmapGradient.fromList(self.readValue() as! [Any?])
+      return PlatformHeatmap.fromList(self.readValue() as! [Any?])
     case 147:
-      return PlatformWeightedLatLng.fromList(self.readValue() as! [Any?])
+      return PlatformHeatmapGradient.fromList(self.readValue() as! [Any?])
     case 148:
-      return PlatformInfoWindow.fromList(self.readValue() as! [Any?])
+      return PlatformWeightedLatLng.fromList(self.readValue() as! [Any?])
     case 149:
-      return PlatformCluster.fromList(self.readValue() as! [Any?])
+      return PlatformInfoWindow.fromList(self.readValue() as! [Any?])
     case 150:
-      return PlatformClusterManager.fromList(self.readValue() as! [Any?])
+      return PlatformCluster.fromList(self.readValue() as! [Any?])
     case 151:
-      return PlatformMarker.fromList(self.readValue() as! [Any?])
+      return PlatformClusterManager.fromList(self.readValue() as! [Any?])
     case 152:
-      return PlatformPolygon.fromList(self.readValue() as! [Any?])
+      return PlatformMarker.fromList(self.readValue() as! [Any?])
     case 153:
-      return PlatformPolyline.fromList(self.readValue() as! [Any?])
+      return PlatformPolygon.fromList(self.readValue() as! [Any?])
     case 154:
-      return PlatformPatternItem.fromList(self.readValue() as! [Any?])
+      return PlatformPolyline.fromList(self.readValue() as! [Any?])
     case 155:
-      return PlatformTile.fromList(self.readValue() as! [Any?])
+      return PlatformPatternItem.fromList(self.readValue() as! [Any?])
     case 156:
-      return PlatformTileOverlay.fromList(self.readValue() as! [Any?])
+      return PlatformTile.fromList(self.readValue() as! [Any?])
     case 157:
-      return PlatformEdgeInsets.fromList(self.readValue() as! [Any?])
+      return PlatformTileOverlay.fromList(self.readValue() as! [Any?])
     case 158:
-      return PlatformLatLng.fromList(self.readValue() as! [Any?])
+      return PlatformEdgeInsets.fromList(self.readValue() as! [Any?])
     case 159:
-      return PlatformLatLngBounds.fromList(self.readValue() as! [Any?])
+      return PlatformLatLng.fromList(self.readValue() as! [Any?])
     case 160:
-      return PlatformCameraTargetBounds.fromList(self.readValue() as! [Any?])
+      return PlatformLatLngBounds.fromList(self.readValue() as! [Any?])
     case 161:
-      return PlatformGroundOverlay.fromList(self.readValue() as! [Any?])
+      return PlatformCameraTargetBounds.fromList(self.readValue() as! [Any?])
     case 162:
-      return PlatformMapViewCreationParams.fromList(self.readValue() as! [Any?])
+      return PlatformGroundOverlay.fromList(self.readValue() as! [Any?])
     case 163:
-      return PlatformMapConfiguration.fromList(self.readValue() as! [Any?])
+      return PlatformMapViewCreationParams.fromList(self.readValue() as! [Any?])
     case 164:
-      return PlatformPoint.fromList(self.readValue() as! [Any?])
+      return PlatformMapConfiguration.fromList(self.readValue() as! [Any?])
     case 165:
-      return PlatformSize.fromList(self.readValue() as! [Any?])
+      return PlatformPoint.fromList(self.readValue() as! [Any?])
     case 166:
-      return PlatformColor.fromList(self.readValue() as! [Any?])
+      return PlatformSize.fromList(self.readValue() as! [Any?])
     case 167:
-      return PlatformTileLayer.fromList(self.readValue() as! [Any?])
+      return PlatformColor.fromList(self.readValue() as! [Any?])
     case 168:
-      return PlatformZoomRange.fromList(self.readValue() as! [Any?])
+      return PlatformTileLayer.fromList(self.readValue() as! [Any?])
     case 169:
-      return PlatformBitmapDefaultMarker.fromList(self.readValue() as! [Any?])
+      return PlatformZoomRange.fromList(self.readValue() as! [Any?])
     case 170:
-      return PlatformBitmapBytes.fromList(self.readValue() as! [Any?])
+      return PlatformBitmapDefaultMarker.fromList(self.readValue() as! [Any?])
     case 171:
-      return PlatformBitmapAsset.fromList(self.readValue() as! [Any?])
+      return PlatformBitmapBytes.fromList(self.readValue() as! [Any?])
     case 172:
-      return PlatformBitmapAssetImage.fromList(self.readValue() as! [Any?])
+      return PlatformBitmapAsset.fromList(self.readValue() as! [Any?])
     case 173:
-      return PlatformBitmapAssetMap.fromList(self.readValue() as! [Any?])
+      return PlatformBitmapAssetImage.fromList(self.readValue() as! [Any?])
     case 174:
-      return PlatformBitmapBytesMap.fromList(self.readValue() as! [Any?])
+      return PlatformBitmapAssetMap.fromList(self.readValue() as! [Any?])
     case 175:
+      return PlatformBitmapBytesMap.fromList(self.readValue() as! [Any?])
+    case 176:
       return PlatformBitmapPinConfig.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -2726,131 +2745,134 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PlatformMarkerType {
       super.writeByte(133)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformMapBitmapScaling {
+    } else if let value = value as? PlatformMapColorScheme {
       super.writeByte(134)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformCameraPosition {
+    } else if let value = value as? PlatformMapBitmapScaling {
       super.writeByte(135)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateNewCameraPosition {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformCameraPosition {
       super.writeByte(136)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateNewLatLng {
+    } else if let value = value as? PlatformCameraUpdateNewCameraPosition {
       super.writeByte(137)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateNewLatLngBounds {
+    } else if let value = value as? PlatformCameraUpdateNewLatLng {
       super.writeByte(138)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateNewLatLngZoom {
+    } else if let value = value as? PlatformCameraUpdateNewLatLngBounds {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateScrollBy {
+    } else if let value = value as? PlatformCameraUpdateNewLatLngZoom {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateZoomBy {
+    } else if let value = value as? PlatformCameraUpdateScrollBy {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateZoom {
+    } else if let value = value as? PlatformCameraUpdateZoomBy {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraUpdateZoomTo {
+    } else if let value = value as? PlatformCameraUpdateZoom {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCircle {
+    } else if let value = value as? PlatformCameraUpdateZoomTo {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformHeatmap {
+    } else if let value = value as? PlatformCircle {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformHeatmapGradient {
+    } else if let value = value as? PlatformHeatmap {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformWeightedLatLng {
+    } else if let value = value as? PlatformHeatmapGradient {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInfoWindow {
+    } else if let value = value as? PlatformWeightedLatLng {
       super.writeByte(148)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCluster {
+    } else if let value = value as? PlatformInfoWindow {
       super.writeByte(149)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformClusterManager {
+    } else if let value = value as? PlatformCluster {
       super.writeByte(150)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformMarker {
+    } else if let value = value as? PlatformClusterManager {
       super.writeByte(151)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPolygon {
+    } else if let value = value as? PlatformMarker {
       super.writeByte(152)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPolyline {
+    } else if let value = value as? PlatformPolygon {
       super.writeByte(153)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPatternItem {
+    } else if let value = value as? PlatformPolyline {
       super.writeByte(154)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTile {
+    } else if let value = value as? PlatformPatternItem {
       super.writeByte(155)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTileOverlay {
+    } else if let value = value as? PlatformTile {
       super.writeByte(156)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformEdgeInsets {
+    } else if let value = value as? PlatformTileOverlay {
       super.writeByte(157)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformLatLng {
+    } else if let value = value as? PlatformEdgeInsets {
       super.writeByte(158)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformLatLngBounds {
+    } else if let value = value as? PlatformLatLng {
       super.writeByte(159)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCameraTargetBounds {
+    } else if let value = value as? PlatformLatLngBounds {
       super.writeByte(160)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformGroundOverlay {
+    } else if let value = value as? PlatformCameraTargetBounds {
       super.writeByte(161)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformMapViewCreationParams {
+    } else if let value = value as? PlatformGroundOverlay {
       super.writeByte(162)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformMapConfiguration {
+    } else if let value = value as? PlatformMapViewCreationParams {
       super.writeByte(163)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPoint {
+    } else if let value = value as? PlatformMapConfiguration {
       super.writeByte(164)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformSize {
+    } else if let value = value as? PlatformPoint {
       super.writeByte(165)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformColor {
+    } else if let value = value as? PlatformSize {
       super.writeByte(166)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTileLayer {
+    } else if let value = value as? PlatformColor {
       super.writeByte(167)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformZoomRange {
+    } else if let value = value as? PlatformTileLayer {
       super.writeByte(168)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformBitmapDefaultMarker {
+    } else if let value = value as? PlatformZoomRange {
       super.writeByte(169)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformBitmapBytes {
+    } else if let value = value as? PlatformBitmapDefaultMarker {
       super.writeByte(170)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformBitmapAsset {
+    } else if let value = value as? PlatformBitmapBytes {
       super.writeByte(171)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformBitmapAssetImage {
+    } else if let value = value as? PlatformBitmapAsset {
       super.writeByte(172)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformBitmapAssetMap {
+    } else if let value = value as? PlatformBitmapAssetImage {
       super.writeByte(173)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformBitmapBytesMap {
+    } else if let value = value as? PlatformBitmapAssetMap {
       super.writeByte(174)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformBitmapPinConfig {
+    } else if let value = value as? PlatformBitmapBytesMap {
       super.writeByte(175)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformBitmapPinConfig {
+      super.writeByte(176)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)

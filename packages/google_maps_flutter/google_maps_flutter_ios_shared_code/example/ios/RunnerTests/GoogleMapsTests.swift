@@ -278,7 +278,8 @@ class StubPluginRegistrar: NSObject, FlutterPluginRegistrar {
         buildingsEnabled: nil,
         markerType: .marker,
         mapId: nil,
-        style: nil
+        style: nil,
+        colorScheme: nil
       ),
       initialCircles: [],
       initialMarkers: [],
@@ -347,11 +348,78 @@ class StubPluginRegistrar: NSObject, FlutterPluginRegistrar {
       buildingsEnabled: nil,
       markerType: .marker,
       mapId: nil,
-      style: nil
+      style: nil,
+      colorScheme: nil
     )
     controller.interpretMapConfiguration(config)
 
     // The style error should still be present
     #expect(controller.styleError != nil)
+  }
+
+  @Test func colorSchemeOverridesMapViewInterfaceStyle() {
+    let mapView = PartiallyMockedMapView(options: GMSMapViewOptions())
+    let controller = GoogleMapController(
+      mapView: mapView,
+      viewIdentifier: 0,
+      creationParameters: emptyCreationParameters(),
+      assetProvider: TestAssetProvider(),
+      binaryMessenger: StubBinaryMessenger()
+    )
+    // The Maps SDK picks its own initial override (light), so only the
+    // transitions the plugin makes are asserted.
+
+    controller.interpretMapConfiguration(configuration(colorScheme: .dark))
+    #expect(mapView.overrideUserInterfaceStyle == .dark)
+
+    controller.interpretMapConfiguration(configuration(colorScheme: .light))
+    #expect(mapView.overrideUserInterfaceStyle == .light)
+
+    controller.interpretMapConfiguration(configuration(colorScheme: .followSystem))
+    #expect(mapView.overrideUserInterfaceStyle == .unspecified)
+
+    // A configuration without a scheme leaves the current override alone.
+    controller.interpretMapConfiguration(configuration(colorScheme: .dark))
+    controller.interpretMapConfiguration(configuration(colorScheme: nil))
+    #expect(mapView.overrideUserInterfaceStyle == .dark)
+  }
+
+  @Test func colorSchemeAppliedAtCreation() {
+    let mapView = PartiallyMockedMapView(options: GMSMapViewOptions())
+    var creationParameters = emptyCreationParameters()
+    creationParameters.mapConfiguration = configuration(colorScheme: .dark)
+    let controller = GoogleMapController(
+      mapView: mapView,
+      viewIdentifier: 0,
+      creationParameters: creationParameters,
+      assetProvider: TestAssetProvider(),
+      binaryMessenger: StubBinaryMessenger()
+    )
+    withExtendedLifetime(controller) {}
+    #expect(mapView.overrideUserInterfaceStyle == .dark)
+  }
+
+  private func configuration(colorScheme: PlatformMapColorScheme?) -> PlatformMapConfiguration {
+    return PlatformMapConfiguration(
+      compassEnabled: nil,
+      cameraTargetBounds: nil,
+      mapType: nil,
+      minMaxZoomPreference: nil,
+      rotateGesturesEnabled: nil,
+      scrollGesturesEnabled: nil,
+      tiltGesturesEnabled: nil,
+      trackCameraPosition: nil,
+      zoomGesturesEnabled: nil,
+      myLocationEnabled: nil,
+      myLocationButtonEnabled: nil,
+      padding: nil,
+      indoorViewEnabled: nil,
+      trafficEnabled: nil,
+      buildingsEnabled: nil,
+      markerType: .marker,
+      mapId: nil,
+      style: nil,
+      colorScheme: colorScheme
+    )
   }
 }

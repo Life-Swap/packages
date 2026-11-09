@@ -507,6 +507,9 @@ public class GoogleMapController: NSObject, GMSMapViewDelegate, FlutterPlatformV
     if let myLocationButtonEnabled = config.myLocationButtonEnabled {
       mapView.settings.myLocationButton = myLocationButtonEnabled
     }
+    if let colorScheme = config.colorScheme {
+      mapView.overrideUserInterfaceStyle = colorScheme.userInterfaceStyle
+    }
     if let mapStyle = config.style {
       let (style, errorString) = GoogleMapController.parseMapStyle(mapStyle)
       if errorString == nil {

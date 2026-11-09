@@ -1,3 +1,9 @@
+## NEXT
+
+* Adds support for `colorScheme` (light, dark, follow system) via the map view's interface style override.
+* Shares one `UIImage` instance between markers with identical icons, so the Maps SDK keeps one texture per distinct icon instead of one per marker.
+* Downsamples marker icons that carry more pixels than the screen can display to the screen scale.
+
 ## 2.19.0
 
 * Adds support for tapping points of interest on the map.

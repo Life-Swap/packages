@@ -93,6 +93,21 @@ extension PlatformMapType {
   }
 }
 
+extension PlatformMapColorScheme {
+  /// The UIUserInterfaceStyle override that makes the map view render in this scheme.
+  ///
+  /// The Maps SDK for iOS follows the view's trait collection, so forcing a scheme is a matter of
+  /// overriding the interface style on the map view; `followSystem` clears the override.
+  var userInterfaceStyle: UIUserInterfaceStyle {
+    switch self {
+    case .light: return .light
+    case .dark: return .dark
+    case .followSystem: return .unspecified
+    @unknown default: return .unspecified
+    }
+  }
+}
+
 extension PlatformMarkerCollisionBehavior {
   /// The corresponding GMSCollisionBehavior.
   var gmsCollisionBehavior: GMSCollisionBehavior {
