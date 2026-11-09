@@ -1088,6 +1088,47 @@ void main() {
     expect(widget, isA<AndroidView>());
   });
 
+  test('colorScheme is passed to platform view', () async {
+    final maps = GoogleMapsFlutterAndroid();
+    final Widget widget = maps.buildViewWithConfiguration(
+      1,
+      (int _) {},
+      widgetConfiguration: const MapWidgetConfiguration(
+        initialCameraPosition: CameraPosition(target: LatLng(0, 0), zoom: 1),
+        textDirection: TextDirection.ltr,
+      ),
+      mapConfiguration: const MapConfiguration(colorScheme: MapColorScheme.dark),
+    );
+
+    expect(widget, isA<AndroidView>());
+    final dynamic creationParams = (widget as AndroidView).creationParams;
+    expect(creationParams, isA<PlatformMapViewCreationParams>());
+    expect(
+      (creationParams as PlatformMapViewCreationParams).mapConfiguration.colorScheme,
+      PlatformMapColorScheme.dark,
+    );
+  });
+
+  test('colorScheme defaults to null if unset', () async {
+    final maps = GoogleMapsFlutterAndroid();
+    final Widget widget = maps.buildViewWithConfiguration(
+      1,
+      (int _) {},
+      widgetConfiguration: const MapWidgetConfiguration(
+        initialCameraPosition: CameraPosition(target: LatLng(0, 0), zoom: 1),
+        textDirection: TextDirection.ltr,
+      ),
+    );
+
+    expect(widget, isA<AndroidView>());
+    final dynamic creationParams = (widget as AndroidView).creationParams;
+    expect(creationParams, isA<PlatformMapViewCreationParams>());
+    expect(
+      (creationParams as PlatformMapViewCreationParams).mapConfiguration.colorScheme,
+      isNull,
+    );
+  });
+
   test('moveCamera calls through with expected newCameraPosition', () async {
     const mapId = 1;
     final (GoogleMapsFlutterAndroid maps, MockMapsApi api) = setUpMockMap(mapId: mapId);

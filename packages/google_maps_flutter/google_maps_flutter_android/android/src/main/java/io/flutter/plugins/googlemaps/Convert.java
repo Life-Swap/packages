@@ -14,6 +14,7 @@ import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Point;
+import android.util.LruCache;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -45,6 +46,8 @@ import com.google.maps.android.heatmaps.Gradient;
 import com.google.maps.android.heatmaps.WeightedLatLng;
 import io.flutter.FlutterInjector;
 import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -52,6 +55,86 @@ import java.util.function.Consumer;
 
 /** Conversions between JSON-like values and GoogleMaps data types. */
 class Convert {
+  /**
+   * Cache of bitmap descriptors by descriptor content, so identical descriptors yield the same
+   * BitmapDescriptor instance. The Maps SDK keeps one marker texture per BitmapDescriptor instance,
+   * so instance sharing is what lets N markers with the same icon share one texture and one
+   * asset/bytes decode instead of N copies. Mirrors the UIImage icon cache in the iOS
+   * implementation (FGMImageUtils.m).
+   *
+   * <p>LruCache synchronizes get/put internally; eviction of a live entry only costs a re-decode on
+   * the next miss.
+   */
+  private static final LruCache<String, BitmapDescriptor> bitmapDescriptorCache =
+      new LruCache<>(100);
+
+  @VisibleForTesting
+  static void clearBitmapDescriptorCache() {
+    bitmapDescriptorCache.evictAll();
+  }
+
+  /**
+   * Returns a key uniquely identifying the BitmapDescriptor that {@link #getBitmapFromAsset}
+   * produces for this descriptor. The raw asset name is a stable key: it resolves through the
+   * process-wide FlutterInjector, so a given name always yields the same asset.
+   */
+  private static String cacheKeyForAsset(PlatformBitmapAssetMap assetMap, float density) {
+    return "asset|"
+        + assetMap.getAssetName()
+        + "|"
+        + assetMap.getBitmapScaling()
+        + "|"
+        + assetMap.getImagePixelRatio()
+        + "|"
+        + (assetMap.getWidth() == null ? "-" : assetMap.getWidth())
+        + "|"
+        + (assetMap.getHeight() == null ? "-" : assetMap.getHeight())
+        + "|"
+        + density;
+  }
+
+  /**
+   * Returns a key uniquely identifying the BitmapDescriptor that {@link #getBitmapFromBytes}
+   * produces for this descriptor, or null when no digest algorithm is available (caching is
+   * best-effort; callers fall through to an uncached build).
+   */
+  @Nullable
+  private static String cacheKeyForBytes(PlatformBitmapBytesMap bytesMap, float density) {
+    final String digest = sha256Hex(bytesMap.getByteData());
+    if (digest == null) {
+      return null;
+    }
+    return "bytes|"
+        + digest
+        + "|"
+        + bytesMap.getBitmapScaling()
+        + "|"
+        + bytesMap.getImagePixelRatio()
+        + "|"
+        + (bytesMap.getWidth() == null ? "-" : bytesMap.getWidth())
+        + "|"
+        + (bytesMap.getHeight() == null ? "-" : bytesMap.getHeight())
+        + "|"
+        + density;
+  }
+
+  @Nullable
+  private static String sha256Hex(byte[] data) {
+    final MessageDigest md;
+    try {
+      md = MessageDigest.getInstance("SHA-256");
+    } catch (NoSuchAlgorithmException e) {
+      return null;
+    }
+    final byte[] hash = md.digest(data);
+    final StringBuilder hex = new StringBuilder(hash.length * 2);
+    for (byte b : hash) {
+      hex.append(Character.forDigit((b >> 4) & 0xf, 16));
+      hex.append(Character.forDigit(b & 0xf, 16));
+    }
+    return hex.toString();
+  }
+
   private static BitmapDescriptor toBitmapDescriptor(
       PlatformBitmap platformBitmap, AssetManager assetManager, float density) {
     return toBitmapDescriptor(
@@ -132,6 +215,25 @@ class Convert {
    */
   @VisibleForTesting
   public static BitmapDescriptor getBitmapFromBytes(
+      PlatformBitmapBytesMap bytesMap,
+      float density,
+      BitmapDescriptorFactoryWrapper bitmapDescriptorFactory) {
+    final String cacheKey = cacheKeyForBytes(bytesMap, density);
+    if (cacheKey != null) {
+      final BitmapDescriptor cached = bitmapDescriptorCache.get(cacheKey);
+      if (cached != null) {
+        return cached;
+      }
+    }
+    final BitmapDescriptor descriptor =
+        getBitmapFromBytesUncached(bytesMap, density, bitmapDescriptorFactory);
+    if (cacheKey != null && descriptor != null) {
+      bitmapDescriptorCache.put(cacheKey, descriptor);
+    }
+    return descriptor;
+  }
+
+  private static BitmapDescriptor getBitmapFromBytesUncached(
       PlatformBitmapBytesMap bytesMap,
       float density,
       BitmapDescriptorFactoryWrapper bitmapDescriptorFactory) {
@@ -264,6 +366,26 @@ class Convert {
    */
   @VisibleForTesting
   public static BitmapDescriptor getBitmapFromAsset(
+      PlatformBitmapAssetMap assetMap,
+      AssetManager assetManager,
+      float density,
+      BitmapDescriptorFactoryWrapper bitmapDescriptorFactory,
+      FlutterInjectorWrapper flutterInjector) {
+    final String cacheKey = cacheKeyForAsset(assetMap, density);
+    final BitmapDescriptor cached = bitmapDescriptorCache.get(cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+    final BitmapDescriptor descriptor =
+        getBitmapFromAssetUncached(
+            assetMap, assetManager, density, bitmapDescriptorFactory, flutterInjector);
+    if (descriptor != null) {
+      bitmapDescriptorCache.put(cacheKey, descriptor);
+    }
+    return descriptor;
+  }
+
+  private static BitmapDescriptor getBitmapFromAssetUncached(
       PlatformBitmapAssetMap assetMap,
       AssetManager assetManager,
       float density,
@@ -577,6 +699,18 @@ class Convert {
     if (style != null) {
       sink.setMapStyle(style);
     }
+    final PlatformMapColorScheme colorScheme = config.getColorScheme();
+    if (colorScheme != null) {
+      sink.setMapColorScheme(toMapColorScheme(colorScheme));
+    }
+  }
+
+  static int toMapColorScheme(@NonNull PlatformMapColorScheme colorScheme) {
+    return switch (colorScheme) {
+      case LIGHT -> com.google.android.gms.maps.model.MapColorScheme.LIGHT;
+      case DARK -> com.google.android.gms.maps.model.MapColorScheme.DARK;
+      case FOLLOW_SYSTEM -> com.google.android.gms.maps.model.MapColorScheme.FOLLOW_SYSTEM;
+    };
   }
 
   /** Set the options in the given object to marker options sink. */

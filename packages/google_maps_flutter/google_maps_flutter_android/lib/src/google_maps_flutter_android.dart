@@ -1252,6 +1252,17 @@ PlatformMarkerType _platformMarkerTypeFromMarkerType(MarkerType markerType) {
   };
 }
 
+PlatformMapColorScheme? _platformMapColorSchemeFromMapColorScheme(MapColorScheme? colorScheme) {
+  if (colorScheme == null) {
+    return null;
+  }
+  return switch (colorScheme) {
+    MapColorScheme.light => PlatformMapColorScheme.light,
+    MapColorScheme.dark => PlatformMapColorScheme.dark,
+    MapColorScheme.followSystem => PlatformMapColorScheme.followSystem,
+  };
+}
+
 PlatformMapConfiguration _platformMapConfigurationFromMapConfiguration(MapConfiguration config) {
   return PlatformMapConfiguration(
     compassEnabled: config.compassEnabled,
@@ -1277,6 +1288,7 @@ PlatformMapConfiguration _platformMapConfigurationFromMapConfiguration(MapConfig
     markerType: _platformMarkerTypeFromMarkerType(config.markerType ?? MarkerType.marker),
     mapId: config.mapId,
     style: config.style,
+    colorScheme: _platformMapColorSchemeFromMapColorScheme(config.colorScheme),
   );
 }
 

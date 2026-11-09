@@ -109,6 +109,8 @@ class GoogleMapController
   private @Nullable List<PlatformGroundOverlay> initialGroundOverlays;
   // Null except between initialization and onMapReady.
   private @Nullable String initialMapStyle;
+  // Null except between initialization and onMapReady.
+  private @Nullable Integer initialMapColorScheme;
   private boolean lastSetStyleSucceeded;
   @VisibleForTesting List<Float> initialPadding;
 
@@ -242,6 +244,10 @@ class GoogleMapController
     if (initialMapStyle != null) {
       updateMapStyle(initialMapStyle);
       initialMapStyle = null;
+    }
+    if (initialMapColorScheme != null) {
+      googleMap.setMapColorScheme(initialMapColorScheme);
+      initialMapColorScheme = null;
     }
   }
 
@@ -856,6 +862,17 @@ class GoogleMapController
       initialMapStyle = style;
     } else {
       updateMapStyle(style);
+    }
+  }
+
+  public void setMapColorScheme(@Nullable Integer colorScheme) {
+    if (colorScheme == null) {
+      return;
+    }
+    if (googleMap == null) {
+      initialMapColorScheme = colorScheme;
+    } else {
+      googleMap.setMapColorScheme(colorScheme);
     }
   }
 

@@ -1,3 +1,8 @@
+## NEXT
+
+* Adds support for `colorScheme` (light, dark, follow system).
+* Caches marker `BitmapDescriptor`s by descriptor content, so markers with identical icons share one decode and one Maps SDK texture.
+
 ## 2.21.1
 
 * Updates Robolectric to 4.17 and adds the JVM arguments it requires for unit tests.

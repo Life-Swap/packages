@@ -20,7 +20,9 @@ import io.flutter.plugins.googlemaps.Convert.BitmapDescriptorFactoryWrapper
 import io.flutter.plugins.googlemaps.Convert.FlutterInjectorWrapper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
@@ -47,6 +49,13 @@ class ConvertTest {
 
   // A 1x1 pixel (#8080ff) PNG image encoded in base64
   private val base64Image: String = TestImageUtils.generateBase64Image()
+
+  @Before
+  fun setUp() {
+    // The descriptor cache is static; clear it so descriptors cached with one
+    // test's mocks never leak into another test.
+    Convert.clearBitmapDescriptorCache()
+  }
 
   @Test
   fun convertPointsFromPigeonConvertsThePointsWithFullPrecision() {
@@ -271,6 +280,133 @@ class ConvertTest {
     val result = Convert.getBitmapFromBytes(bitmap, 1f, bitmapDescriptorFactoryWrapper)
 
     assertEquals(mockBitmapDescriptor, result)
+  }
+
+  @Test
+  fun getBitmapFromAssetCachesIdenticalDescriptors() {
+    val fakeAssetName = "fake_asset_name"
+    val fakeAssetKey = "fake_asset_key"
+
+    whenever(flutterInjectorWrapper.getLookupKeyForAsset(fakeAssetName)).thenReturn(fakeAssetKey)
+    // Fresh stream per open(): a cache miss on the second call would consume a
+    // second stream.
+    whenever(assetManager.open(fakeAssetKey)).thenAnswer { TestImageUtils.buildImageInputStream() }
+    whenever(bitmapDescriptorFactoryWrapper.fromBitmap(any())).thenReturn(mockBitmapDescriptor)
+
+    val first =
+        PlatformBitmapAssetMap(
+            fakeAssetName,
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 2.0,
+            width = 15.0,
+            height = null)
+    val second =
+        PlatformBitmapAssetMap(
+            fakeAssetName,
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 2.0,
+            width = 15.0,
+            height = null)
+
+    val firstResult =
+        Convert.getBitmapFromAsset(
+            first, assetManager, 1.0f, bitmapDescriptorFactoryWrapper, flutterInjectorWrapper)
+    val secondResult =
+        Convert.getBitmapFromAsset(
+            second, assetManager, 1.0f, bitmapDescriptorFactoryWrapper, flutterInjectorWrapper)
+
+    assertSame(firstResult, secondResult)
+    // The cached instance must be returned without re-reading or re-building.
+    verify(assetManager, times(1)).open(fakeAssetKey)
+    verify(bitmapDescriptorFactoryWrapper, times(1)).fromBitmap(any())
+  }
+
+  @Test
+  fun getBitmapFromAssetDoesNotCacheAcrossDifferentDimensions() {
+    val fakeAssetName = "fake_asset_name"
+    val fakeAssetKey = "fake_asset_key"
+
+    whenever(flutterInjectorWrapper.getLookupKeyForAsset(fakeAssetName)).thenReturn(fakeAssetKey)
+    whenever(assetManager.open(fakeAssetKey)).thenAnswer { TestImageUtils.buildImageInputStream() }
+    whenever(bitmapDescriptorFactoryWrapper.fromBitmap(any())).thenReturn(mockBitmapDescriptor)
+
+    val first =
+        PlatformBitmapAssetMap(
+            fakeAssetName,
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 2.0,
+            width = 15.0,
+            height = null)
+    val second =
+        PlatformBitmapAssetMap(
+            fakeAssetName,
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 2.0,
+            width = 20.0,
+            height = null)
+
+    Convert.getBitmapFromAsset(
+        first, assetManager, 1.0f, bitmapDescriptorFactoryWrapper, flutterInjectorWrapper)
+    Convert.getBitmapFromAsset(
+        second, assetManager, 1.0f, bitmapDescriptorFactoryWrapper, flutterInjectorWrapper)
+
+    verify(assetManager, times(2)).open(fakeAssetKey)
+    verify(bitmapDescriptorFactoryWrapper, times(2)).fromBitmap(any())
+  }
+
+  @Test
+  fun getBitmapFromBytesCachesIdenticalDescriptors() {
+    val bmpData = Base64.decode(base64Image, Base64.DEFAULT)
+
+    whenever(bitmapDescriptorFactoryWrapper.fromBitmap(any())).thenReturn(mockBitmapDescriptor)
+
+    val first =
+        PlatformBitmapBytesMap(
+            bmpData,
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 2.0,
+            width = 15.0,
+            height = null)
+    val second =
+        PlatformBitmapBytesMap(
+            bmpData.clone(),
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 2.0,
+            width = 15.0,
+            height = null)
+
+    val firstResult = Convert.getBitmapFromBytes(first, 1f, bitmapDescriptorFactoryWrapper)
+    val secondResult = Convert.getBitmapFromBytes(second, 1f, bitmapDescriptorFactoryWrapper)
+
+    assertSame(firstResult, secondResult)
+    verify(bitmapDescriptorFactoryWrapper, times(1)).fromBitmap(any())
+  }
+
+  @Test
+  fun getBitmapFromBytesDoesNotCacheAcrossDifferentScalingParams() {
+    val bmpData = Base64.decode(base64Image, Base64.DEFAULT)
+
+    whenever(bitmapDescriptorFactoryWrapper.fromBitmap(any())).thenReturn(mockBitmapDescriptor)
+
+    val first =
+        PlatformBitmapBytesMap(
+            bmpData,
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 2.0,
+            width = null,
+            height = null)
+    val second =
+        PlatformBitmapBytesMap(
+            bmpData,
+            PlatformMapBitmapScaling.AUTO,
+            imagePixelRatio = 3.0,
+            width = null,
+            height = null)
+
+    Convert.getBitmapFromBytes(first, 1f, bitmapDescriptorFactoryWrapper)
+    Convert.getBitmapFromBytes(second, 1f, bitmapDescriptorFactoryWrapper)
+
+    verify(bitmapDescriptorFactoryWrapper, times(2)).fromBitmap(any())
   }
 
   @Test
@@ -550,6 +686,32 @@ class ConvertTest {
             minMaxZoomPreference = PlatformZoomRange(min, max))
     Convert.interpretMapConfiguration(config, optionsSink)
     verify(optionsSink, times(1)).setMinMaxZoomPreference(min.toFloat(), max.toFloat())
+  }
+
+  @Test
+  fun interpretMapConfiguration_handlesColorScheme() {
+    val config =
+        PlatformMapConfiguration(
+            markerType = PlatformMarkerType.MARKER, colorScheme = PlatformMapColorScheme.DARK)
+    Convert.interpretMapConfiguration(config, optionsSink)
+    verify(optionsSink, times(1))
+        .setMapColorScheme(com.google.android.gms.maps.model.MapColorScheme.DARK)
+  }
+
+  @Test
+  fun toMapColorSchemeMapsEveryValue() {
+    val expected =
+        mapOf(
+            PlatformMapColorScheme.LIGHT to com.google.android.gms.maps.model.MapColorScheme.LIGHT,
+            PlatformMapColorScheme.DARK to com.google.android.gms.maps.model.MapColorScheme.DARK,
+            PlatformMapColorScheme.FOLLOW_SYSTEM to
+                com.google.android.gms.maps.model.MapColorScheme.FOLLOW_SYSTEM)
+    // Every enum value must be covered, so a new Pigeon value cannot slip
+    // through unmapped.
+    assertEquals(PlatformMapColorScheme.values().toSet(), expected.keys)
+    for ((platform, native) in expected) {
+      assertEquals(native, Convert.toMapColorScheme(platform))
+    }
   }
 
   @Test
